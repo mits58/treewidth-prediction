@@ -154,10 +154,11 @@ class TreewidthAlgorithm():
     eval_GNN_time : float
         memorize the time of evaluation GNN
     """
-    def __init__(self, prune):
+    def __init__(self, prune, calc):
         self.dp_S = {}
         self.dp_Q = {}
         self.prune = prune
+        self.calc = calc
         self.prune_num = 0
         self.func_call_num = 0
         self.eval_GNN_time = 0
@@ -166,23 +167,16 @@ class TreewidthAlgorithm():
         """
         This method is called in each opt to initialize dp_S
         """
-        if self.prune == "upper":
-            # preserve true
-            new_S = {}
-            for k, v in self.dp_S.items():
-                if v:
-                    new_S[k] = v
-            self.dp_S = new_S
-
-        elif self.prune == "lower":
-            # preserve false
+        if self.calc == "upper":
+            # upper-calculation -> preserve false
             new_S = {}
             for k, v in self.dp_S.items():
                 if not v:
                     new_S[k] = v
             self.dp_S = new_S
-        else:
-            # preserve true
+
+        elif self.calc == "lower":
+            # lower-calculation -> preserve true
             new_S = {}
             for k, v in self.dp_S.items():
                 if v:
@@ -356,14 +350,15 @@ class TreewidthAlgorithm():
         return res
 
 
-@timeout_decorator.timeout(600)
-def test(eval_graph, model, prob_bound, prune):
-    calc_GNN_tw = TreewidthAlgorithm(prune)
+# 30 min. -> 1800
+@timeout_decorator.timeout(120)
+def test(eval_graph, model, prob_bound, prune, calc):
+    calc_GNN_tw = TreewidthAlgorithm(prune, calc)
 
     start = time.time()
     if prune == "lower":
         # calculate lower bound by Lower-Prune with Upper-Calculation
-        for opt in range(eval_graph.g.number_of_nodes() - 1, 0, -1):
+        for opt in range(eval_graph.g.number_of_nodes() - 1, -1, -1):
             GNN_tw = calc_GNN_tw.calc_treewidth_with_GNN(eval_graph, eval_graph.g.nodes, opt, model, prob_bound)
             if not GNN_tw:
                 break
@@ -379,25 +374,39 @@ def test(eval_graph, model, prob_bound, prune):
 
     else:
         # calculate predicional treewidth by Both Pruning with Lower-Calculation
-        for opt in range(1, eval_graph.g.number_of_nodes()):
-            GNN_tw = calc_GNN_tw.calc_treewidth_with_GNN(eval_graph, eval_graph.g.nodes, opt, model, prob_bound)
-            if GNN_tw:
-                break
-            calc_GNN_tw.initialize()
+        if calc == "upper":
+            for opt in range(eval_graph.g.number_of_nodes() - 1, -1, -1):
+                GNN_tw = calc_GNN_tw.calc_treewidth_with_GNN(eval_graph, eval_graph.g.nodes, opt, model, prob_bound)
+                if not GNN_tw:
+                    break
+                calc_GNN_tw.initialize()
+        else:
+            for opt in range(1, eval_graph.g.number_of_nodes()):
+                GNN_tw = calc_GNN_tw.calc_treewidth_with_GNN(eval_graph, eval_graph.g.nodes, opt, model, prob_bound)
+                if GNN_tw:
+                    break
+                calc_GNN_tw.initialize()
 
     end = time.time()
-    return (end - start), opt + (1 if prune == "lower" else 0), (calc_GNN_tw.prune_num), calc_GNN_tw.func_call_num, calc_GNN_tw.eval_GNN_time
+    return (end - start), opt + (1 if calc == "upper" else 0), (calc_GNN_tw.prune_num), calc_GNN_tw.func_call_num, calc_GNN_tw.eval_GNN_time
 
 
 @timeout_decorator.timeout(600)
-def ordinaryDP(eval_graph):
-    calc_DP_tw = TreewidthAlgorithm("existAlg")
+def ordinaryDP(eval_graph, calc):
+    calc_DP_tw = TreewidthAlgorithm("existAlg", calc)
     start = time.time()
-    for opt in range(1, eval_graph.g.number_of_nodes()):
-        DP_tw = calc_DP_tw.calc_treewidth_DP_recursive(eval_graph.g, eval_graph.g.nodes, opt)
-        if DP_tw:
-            break
-        calc_DP_tw.initialize()
+    if calc == "lower":
+        for opt in range(1, eval_graph.g.number_of_nodes()):
+            DP_tw = calc_DP_tw.calc_treewidth_DP_recursive(eval_graph.g, eval_graph.g.nodes, opt)
+            if DP_tw:
+                break
+            calc_DP_tw.initialize()
+    else:
+        for opt in range(eval_graph.g.number_of_nodes() - 1, 0, -1):
+            DP_tw = calc_DP_tw.calc_treewidth_DP_recursive(eval_graph.g, eval_graph.g.nodes, opt)
+            if not DP_tw:
+                break
+            calc_DP_tw.initialize()
     end = time.time()
     return end - start, opt, calc_DP_tw.func_call_num
 
@@ -420,26 +429,27 @@ def approach_1(args):
     device.use()
 
     print('\n--- Prediction by approach1 ---')
-    print('Prob_bound\tPrune\tIndex\t|V|\t|E|\ttw(G)\ttime\tevaltw\tprunenum\tfunccallnum\tevalGNNtime')
+    print('Prob_bound\tPrune\tCalcType\tIndex\t|V|\t|E|\ttw(G)\ttime\tevaltw\tprunenum\tfunccallnum\tevalGNNtime')
     # calculation the treewidth of given graphs and evaluation the proposed method and ordinary DP
     prob_bounds = [0.5, 0.7, 0.9]   # using this bound when deciding whether using the prediction of GNN
-    bounds = ["upper", "lower", "both"]     # using this bound at pruning
+    # (pruning type, calculation type)
+    calctype = [("upper", "lower"), ("lower", "upper"), ("both", "lower"), ("both", "upper")]
     for prob_bound in prob_bounds:
-        for bound in bounds:
-            output_file = bound + "_{0:02}_{1}.dat".format(int(prob_bound * 10), args.model_name)
+        for bound in calctype:
+            output_file = "{0}_{1}".format(bound[0], bound[1]) + "_{0:02}_{1}.dat".format(int(prob_bound * 10), args.model_name)
             result = ["ID\t|V|\t|E|\ttw\ttime\tevaltw\tprunenum\tfunccallnum\tevalGNNtime"]
 
             for idx in range(0, len(dataset.graphs)):
-                print('{0}\t{1}\t{2}'.format(prob_bound, bound, idx), end='\t')
+                print('{0}\t{1}\t{3}\t{2}'.format(prob_bound, bound[0], idx, bound[1]), end='\t')
                 eval_graph = dataset.graphs[idx]
                 graphstat = "{3}\t{0}\t{1}\t{2}".format(eval_graph.g.number_of_nodes(), eval_graph.g.number_of_edges(), dataset.labels[idx], str(idx).rjust(5))
                 if eval_graph.g.number_of_nodes() > 15:
-                    print()
+                    print(graphstat)
                     continue
                 try:
-                    tm, evtw, pn, fcn, evtime = test(eval_graph, model, prob_bound, bound)
+                    tm, evtw, pn, fcn, evtime = test(eval_graph, model, prob_bound, bound[0], bound[1])
                     res = "{0}\t{1}\t{2}\t{3}\t{4}".format(tm, evtw, pn, fcn, evtime)
-                except TimeoutError:
+                except timeout_decorator.TimeoutError:
                     res = "TimeOut"
                 print(graphstat + "\t" + res)
                 result.append(graphstat + "\t" + res)
@@ -460,7 +470,7 @@ def approach_1(args):
         try:
             tm, evtw, fcn = ordinaryDP(eval_graph)
             res = "{0}\t{1}\t{2}".format(tm, evtw, fcn)
-        except TimeoutError:
+        except timeout_decorator.TimeoutError:
             res = "TimeOut"
         print(res)
         result.append(graphstat + "\t" + res)
