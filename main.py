@@ -5,6 +5,7 @@ import pickle
 
 import chainer
 import chainer.functions as F
+import networkx
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +15,8 @@ import seaborn as sns
 
 import util
 from gnn import GNN
+
+np.random.seed(1124)
 
 
 def int_set(subset):
@@ -351,7 +354,7 @@ class TreewidthAlgorithm():
 
 
 # 30 min. -> 1800
-@timeout_decorator.timeout(120)
+@timeout_decorator.timeout(1800)
 def test(eval_graph, model, prob_bound, prune, calc):
     calc_GNN_tw = TreewidthAlgorithm(prune, calc)
 
@@ -391,24 +394,24 @@ def test(eval_graph, model, prob_bound, prune, calc):
     return (end - start), opt + (1 if calc == "upper" else 0), (calc_GNN_tw.prune_num), calc_GNN_tw.func_call_num, calc_GNN_tw.eval_GNN_time
 
 
-@timeout_decorator.timeout(600)
+@timeout_decorator.timeout(1800)
 def ordinaryDP(eval_graph, calc):
     calc_DP_tw = TreewidthAlgorithm("existAlg", calc)
     start = time.time()
     if calc == "lower":
         for opt in range(1, eval_graph.g.number_of_nodes()):
-            DP_tw = calc_DP_tw.calc_treewidth_DP_recursive(eval_graph.g, eval_graph.g.nodes, opt)
+            DP_tw = calc_DP_tw.calc_treewidth_recursive(eval_graph.g, eval_graph.g.nodes, opt)
             if DP_tw:
                 break
             calc_DP_tw.initialize()
     else:
-        for opt in range(eval_graph.g.number_of_nodes() - 1, 0, -1):
-            DP_tw = calc_DP_tw.calc_treewidth_DP_recursive(eval_graph.g, eval_graph.g.nodes, opt)
+        for opt in range(eval_graph.g.number_of_nodes() - 1, -1, -1):
+            DP_tw = calc_DP_tw.calc_treewidth_recursive(eval_graph.g, eval_graph.g.nodes, opt)
             if not DP_tw:
                 break
             calc_DP_tw.initialize()
     end = time.time()
-    return end - start, opt, calc_DP_tw.func_call_num
+    return end - start, opt + (1 if calc == "upper" else 0), calc_DP_tw.func_call_num
 
 
 def approach_1(args):
@@ -443,9 +446,6 @@ def approach_1(args):
                 print('{0}\t{1}\t{3}\t{2}'.format(prob_bound, bound[0], idx, bound[1]), end='\t')
                 eval_graph = dataset.graphs[idx]
                 graphstat = "{3}\t{0}\t{1}\t{2}".format(eval_graph.g.number_of_nodes(), eval_graph.g.number_of_edges(), dataset.labels[idx], str(idx).rjust(5))
-                if eval_graph.g.number_of_nodes() > 15:
-                    print(graphstat)
-                    continue
                 try:
                     tm, evtw, pn, fcn, evtime = test(eval_graph, model, prob_bound, bound[0], bound[1])
                     res = "{0}\t{1}\t{2}\t{3}\t{4}".format(tm, evtw, pn, fcn, evtime)
@@ -459,21 +459,22 @@ def approach_1(args):
                     f.write('\n'.join(result))
 
     print('\n--- Prediction by existing algorithm ---')
-    print('Index\t|V|\t|E|\ttw(G)\ttime\tevaltw\tprunenum\tfunccallnum\tevalGNNtime')
+    print('calctype\tIndex\t|V|\t|E|\ttw(G)\ttime\tevaltw\tfunccallnum')
     output_file = "exist_{0}.dat".format(args.model_name)
     result = ["ID\t|V|\t|E|\ttw\ttime\tevaltw\tfunccallnum"]
 
-    for idx in range(0, len(dataset.graphs)):
-        eval_graph = dataset.graphs[idx]
-        graphstat = "{3}\t{0}\t{1}\t{2}".format(eval_graph.g.number_of_nodes(), eval_graph.g.number_of_edges(), dataset.labels[idx], str(idx).rjust(5))
-        print('{0}\t{1}\t{2}\t{3}'.format(str(idx).rjust(5), eval_graph.g.number_of_nodes(), eval_graph.g.number_of_edges(), dataset.labels[idx]), end='\t')
-        try:
-            tm, evtw, fcn = ordinaryDP(eval_graph)
-            res = "{0}\t{1}\t{2}".format(tm, evtw, fcn)
-        except timeout_decorator.TimeoutError:
-            res = "TimeOut"
-        print(res)
-        result.append(graphstat + "\t" + res)
+    for calc in ["upper", "lower"]:
+        for idx in range(0, len(dataset.graphs)):
+            eval_graph = dataset.graphs[idx]
+            graphstat = "{4}\t{3}\t{0}\t{1}\t{2}".format(eval_graph.g.number_of_nodes(), eval_graph.g.number_of_edges(), dataset.labels[idx], str(idx).rjust(5), calc)
+            print(graphstat, end='\t')
+            try:
+                tm, evtw, fcn = ordinaryDP(eval_graph, calc)
+                res = "{0}\t{1}\t{2}".format(tm, evtw, fcn)
+            except timeout_decorator.TimeoutError:
+                res = "TimeOut"
+            print(res)
+            result.append(graphstat + "\t" + res)
 
     # write results to a file
     if args.out_to_file:
