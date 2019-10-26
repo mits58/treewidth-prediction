@@ -439,7 +439,7 @@ def approach_1(args):
     calctype = [("upper", "lower"), ("lower", "upper"), ("both", "lower"), ("both", "upper")]
     for prob_bound in prob_bounds:
         for bound in calctype:
-            output_file = "{0}_{1}".format(bound[0], bound[1]) + "_{0:02}_{1}.dat".format(int(prob_bound * 10), args.model_name)
+            output_file = "{0}_{1}".format(bound[0], bound[1]) + "_{0:02}.dat".format(int(prob_bound * 10))
             result = ["ID\t|V|\t|E|\ttw\ttime\tevaltw\tprunenum\tfunccallnum\tevalGNNtime"]
 
             for idx in range(0, len(dataset.graphs)):
@@ -460,7 +460,7 @@ def approach_1(args):
 
     print('\n--- Prediction by existing algorithm ---')
     print('calctype\tIndex\t|V|\t|E|\ttw(G)\ttime\tevaltw\tfunccallnum')
-    output_file = "exist_{0}.dat".format(args.model_name)
+    output_file = "exist.dat"
     result = ["ID\t|V|\t|E|\ttw\ttime\tevaltw\tfunccallnum"]
 
     for calc in ["upper", "lower"]:
