@@ -86,7 +86,7 @@ if __name__ == '__main__':
                         help='name of dataset (default: mixed)')
     parser.add_argument('--degree_as_tag', type=str, default="binary",
                 		help='let the input node features be the degree of nodes (heuristics for unlabeled graph)')
-    parser.add_argument('--dataset_num', type=int, default=2000, help='# of dataset')
+    parser.add_argument('--dataset_num', type=int, default=10000, help='# of dataset')
     group = parser.add_argument_group('deprecated arguments')
     group.add_argument('--gpu', '-g', dest='device', type=int, nargs='?', const=0, help='GPU ID (negative value indicates CPU)')
     args = parser.parse_args()
