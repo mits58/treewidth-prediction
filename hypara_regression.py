@@ -29,7 +29,7 @@ def objective_with_dataset(dataset):
         neighbor_pooling_type = trial.suggest_categorical('neighbor_pooling_type', ['max', 'average', 'sum'])
         batchsize = trial.suggest_int('batchsize', 16, 128)
 
-        device = chainer.get_device(-1)
+        device = chainer.get_device(0)
         # Classification
         model = GNN(num_layers, num_mlp_layers, dataset.graphs[0].node_features.shape[1],
                     hidden_dim, dataset.graphs[0].node_features.shape[1], final_dropout,
@@ -64,8 +64,8 @@ def objective_with_dataset(dataset):
         # Run the training
         trainer.run()
 
-        # save the model
-        chainer.serializers.save_npz('./result/hypara/regression/{0}.model'.format(trial.number), model)
+        # save the model ?
+        # chainer.serializers.save_npz('./result/hypara/regression/{0}.model'.format(trial.number), model)
 
         # return the AUC
         graphs, target = dataset.converter(test, device)
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # load Grapdata
-    device = chainer.get_device(-1)
+    device = chainer.get_device(0)
     dataset = util.GraphData(args.dataset, args.degree_as_tag, "Regression", args.dataset_num, device)
 
     study_name = 'regression-study'
