@@ -70,7 +70,7 @@ def objective_with_dataset(dataset):
         # return the AUC
         graphs, target = dataset.converter(test, device)
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-            y_pred = model.predictor(graphs)
+            y_pred = model(graphs)
         y_pred.to_cpu()
         y_pred = y_pred.array
         target = chainer.cuda.to_cpu(target)
