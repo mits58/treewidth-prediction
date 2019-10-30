@@ -75,7 +75,12 @@ def objective_with_dataset(dataset):
         y_pred = y_pred.array
         target = chainer.cuda.to_cpu(target)
 
-        return sklearn.metrics.mean_squared_error(target, y_pred)
+        try:
+            value = sklearn.metrics.mean_squared_error(target, y_pred)
+        except ValueError:
+            value = 10e9
+
+        return value
 
     return objective
 
