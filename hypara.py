@@ -32,7 +32,7 @@ def objective_with_dataset(dataset):
         device = chainer.get_device(-1)
         # Classification
         model = L.Classifier(GNN(num_layers, num_mlp_layers, dataset.graphs[0].node_features.shape[1],
-                                    hidden_dim, dataset.num_classes, final_dropout, graph_pooling_type, neighbor_pooling_type, "Task1"))
+                                    hidden_dim, dataset.graphs[0].node_features.shape[1], final_dropout, graph_pooling_type, neighbor_pooling_type, "Regression"))
 
         # choose the using device
         model.to_device(device)
